@@ -1,0 +1,259 @@
+; ----------------------------------------------
+; Universidad del Valle de Guatemala
+; Organización de Computadoras y Assembler
+; Lab 9
+; Derek Arreaga-22537, Mónica Salvatierra-22249
+; Evaluador de régimen apropiado en SAT y obligaciones fiscales
+; 16/05/23
+; ----------------------------------------------
+
+
+.386
+.model flat, stdcall, c
+
+
+.stack 4096
+ExitProcess proto,dwExitCode:dword
+
+
+.data
+notApply DWORD 0
+
+; --------------------------------
+; CREAR ARRAY VACÍO DEL IVA + Facturado
+; --------------------------------
+IVAtotal DWORD 12 DUP(0) ; Enero a Diciembre
+
+; --------------------------------
+; CREAR ARRAY VACÍO DEL IVA
+; --------------------------------
+IVA DWORD 12 DUP(0) ; Enero a Diciembre
+
+; --------------------------------
+; MONTO FACTURADO POR MES
+; --------------------------------
+PERSONA DWORD 12 DUP(?) ; Enero a Diciembre
+ 
+MESES   dword   1,2,3,4,5,6,7,8,9,10,11,12
+        
+
+;VALORES PARA IMPRIMIR
+
+Mes DD ?
+Facturado   DD  ?
+IVAcalc DD  ?
+TotalMes   DD  ?
+Total   DD  ?
+
+
+;TITULOS
+msgMes BYTE "Mes: %d", 0Ah, 0
+msgFact BYTE "Facturado: Q. %d", 0Ah, 0
+msgIVA BYTE "IVA: Q. %d", 0Ah, 0
+msgTotal BYTE "Total del mes: Q. %d", 0Ah, 0
+msgTotalA BYTE "Total Anual: Q. %d", 0Ah, 0
+
+;SCAN
+inputFormat db "%d", 0
+msgInput db "Ingrese el monto facturado por mes: ", 0
+inputBuffer dd 0
+
+;Final
+msgMed db "Su monto facturado total excede de Q.150,000 por lo que debe actualizar su régimen tributario a *IVA GENERAL*", 0Ah, 0
+msgPeque db "Su monto facturado total es menor que Q.150,000 por lo que debe continuar como *PEQUEÑO CONTRIBUYENTE*", 0Ah, 0
+
+
+;FORMATO PARA TABLA
+
+separador db "------------------------------------------------------------------", 0Ah, 0
+Lfinal db "==================================================================", 0Ah, 0
+
+
+.code
+
+;librerias:
+includelib libucrt.lib
+includelib legacy_stdio_definitions.lib
+includelib libcmt.lib
+includelib libvcruntime.lib
+includelib msvcrt.lib
+
+
+extrn printf:near
+extrn scanf:near
+extrn exit:near
+
+
+public main
+main PROC ;Inicializa el procedimiento
+	
+; --------------------------------
+; CALCULAR EL IVA SEGÚN EL MONTO MENSUAL
+; --------------------------------
+;  1. Declarar valores para el ciclo de calcular IVA
+; --------------------------------
+inicioIVA:
+
+        mov  ecx,12     ;ecx Cantidad de meses por recorrer (contador)
+        mov  eax,0      ;eax va a guardar el IVA
+        mov  edi,0      ;edi"i" al es el index actual del array
+; --------------------------------
+;  2. 
+; --------------------------------
+bucleIVA:  mov     eax,    [PERSONA+edi]   ;ebx carga el elemento actual en eax
+    mov  eax, [PERSONA + edi]  ; Carga el elemento actual en eax
+    imul eax, 5               ; Multiplica por 5 el valor
+    mov  ecx, 100             ; Cargar el divisor en ecx
+    xor  edx, edx             ; Hacer que edx sea cero
+    idiv ecx                  ; Divide entre 100 el valor
+    mov  [IVA + edi], eax     ; Guardar en el array IVA
+    add  eax, [PERSONA + edi]
+    mov  [IVAtotal + edi], eax ; Almacena el nuevo valor + IVA en el array IVAtotal
+    add  edi, 4               ; Agrega 4 para obtener la siguiente posición en la siguiente vuelta
+    dec  ecx                  ; Restar al contador
+    jnz  bucleIVA             ; Si el contador no es 0, se repite el bucle
+        
+
+
+inicioSUMA:
+        mov  ecx,12    ;Cantidad de meses por recorrer (contador)
+        mov  eax,0       ;bl va a guardar la suma
+        mov  edi,0      ;al es el index actual del array
+; --------------------------------
+;  Bucle para sumar el array
+; --------------------------------
+bucleSUMA:  
+        add  eax, [PERSONA+edi] ;realiza la suma del elemento actual en ebx
+        add  edi, 4
+        dec  ecx        ;restar al contador
+        jnz  bucleSUMA        ;Si el contador no es 0, se repite el bucle
+        mov Total,  eax
+
+;---------------------------------------------------------------
+;IMPRIMIR FACTURAS:
+;TÍTULO: USUARIO, NIT
+;TABLA: MES / MONTO /ISR
+;TOTAL FACTURADO + ISR
+;MENSAJE DE TIPO DE CONTRIBUYENTE
+;---------------------------------------------------------------
+
+
+;---------------------------------------------------------------
+;--------------------------IMPRIMIR-----------------------------
+;---------------------------------------------------------------
+
+;Mes:   Enero
+;Facturado: Q.4500
+;IVA: Q.225
+;Total: Q.4725
+
+push ebp
+mov ebp, esp
+
+    mov eax,0
+    mov ebx,12
+    mov edi,0
+
+imprimir:
+
+; Mes: Enero
+
+mov eax,[MESES+edi]
+mov Mes ,   eax
+push dword ptr [Mes]
+push dword ptr [Mes]
+push offset  msgMes
+call printf
+
+; Leer monto facturado por mes
+
+push offset inputBuffer
+push offset msgInput
+call printf  ; Imprime el mensaje de entrada
+add esp, 8
+
+; Leer el monto facturado ingresado por el usuario
+
+push offset inputBuffer
+push offset inputFormat
+call scanf
+add esp, 8
+
+; Almacenar el monto facturado en el array PERSONA
+
+mov eax, [inputBuffer]
+mov [PERSONA + edi], eax
+
+;Facturado
+
+mov eax,[PERSONA+edi]
+mov Facturado ,   eax
+push dword ptr [Facturado]
+push offset  msgFact
+call printf
+
+;IVA: Q. 225
+
+mov eax, [IVA+edi]
+mov IVAcalc,eax
+push dword ptr [IVAcalc]
+push offset msgIVA
+call printf
+
+;División
+
+push offset separador
+call printf
+
+;Suma del Mes
+
+mov eax, [IVAtotal+edi]
+mov TotalMes,eax
+push dword ptr [TotalMes]
+push offset msgTotal
+call printf
+
+;Final
+
+push offset Lfinal
+call printf
+
+;Cambios para bucle
+
+add edi, 4
+dec ebx
+jnz imprimir
+
+;Total Anual
+
+push dword ptr [Total]
+push offset msgTotalA
+call printf
+
+;Imprimir si es mediano o pequeño contribuyente
+
+;Comparar el monto con Q150,000
+mov eax, Total
+cmp eax, 150000
+jg Mediano  ;Si es mayor, salta a "Mediano", donde imprime que debe ser mediano contribuyente
+push offset msgPeque    ;Si es menor, imprime que debe ser pequeño y luego salta hacia la parte de "Salir"
+call printf
+add esp, 7
+jmp salir
+
+Mediano:
+
+push offset msgMed
+call printf
+add esp, 7
+
+salir:
+
+push 0
+call exit
+
+RET
+
+
+main ENDP ;termina el procedimiento
+end
